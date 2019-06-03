@@ -6,7 +6,7 @@ class frame {
     private:
       int number;
       int length;
-
+       double time;
 };
 
 #endif

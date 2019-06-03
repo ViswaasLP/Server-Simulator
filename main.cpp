@@ -23,6 +23,10 @@ int main(int argc, char *argv[])
 		char type;
 		Frame  fr(length, source, destination, transmissiontime, type);
 		source->frameQueue.enqueue(fr);
+	if(globalframeq->getSize()==0){
+		
+	}
+	else if(globalframeq->getSize()!=0)
 	}
 
 

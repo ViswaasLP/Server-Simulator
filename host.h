@@ -3,7 +3,7 @@
 #include 'queue.h'
 
 class host {
-    private:
+    public:
       queue* frameQueue;
       double lambda;
 

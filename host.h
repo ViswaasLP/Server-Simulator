@@ -1,10 +1,10 @@
 #ifndef HOST_H
 #define HOST_H
-#include 'queue.h'
+#include "queue.h"
 
 class host {
     public:
-      queue* frameQueue;
+      Queue* frameQueue;
       double lambda;
 
 };

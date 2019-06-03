@@ -26,7 +26,12 @@ int main(int argc, char *argv[])
 	if(globalframeq->getSize()==0){
 		
 	}
-	else if(globalframeq->getSize()!=0)
+	else if(globalframeq->getSize()!=0){
+		source->backoffno = source->backoffno - 1;
+		if(source->backoff==0){
+			globalframeq.enqueue(fr);
+		}
+	}
 	}
 
 

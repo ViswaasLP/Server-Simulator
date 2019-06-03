@@ -1,12 +1,12 @@
 #ifndef HOST_H
 #define HOST_H
-#include "queue.h"
-
-class host {
+#include <vector>
+class Host {
     public:
-      Queue* frameQueue;
+      vector<Frame*> frameQueue;
+      Frame *receivedFrame;
       double lambda;
-       int backoffno;
+      int backoffno;
 
 };
 

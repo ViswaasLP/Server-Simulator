@@ -13,3 +13,23 @@
   e) Loop through all hosts to check if they need to send an ACK frame for recieved frame
   f) Update statistics
  
+
+MODIFIED MAIN LOOP
+  1. Create one Frame for each host w/ random times
+  2. Go through each Frame, from earliest to latest - set time to Frame's creation time
+    a) If channel idle
+      1. Time to transmit = DIFS + time needed to transfer length
+      2. Transmit to destination host - bypasses queue
+    b) If channel busy
+      1. Add backoff number to source host
+      2. Add frame to host's frame queue
+  3. At end of each Frame, check if any host received a packet
+    a) Send acknowledgement frame
+    b) Reset "receivedFrame" variable of host to NULL
+  4. Before working on next Frame, check the following:
+    a) Is the next Frame's time after channel's projected next idle time?
+      1. Then decrement all hosts with backoff numbers based on projected idle time
+          in order, from smallest backoff number to largest
+      2. Transmit Frame of the host with the smallest backoff number - pop it from queue
+    b) Is it before the channel's projected next idle time?
+      1. Do nothing

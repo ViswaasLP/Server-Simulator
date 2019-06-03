@@ -6,6 +6,7 @@ class host {
     public:
       Queue* frameQueue;
       double lambda;
+       int backoffno;
 
 };
 

@@ -28,26 +28,26 @@ int genRandomHost(int exclude, int mod){
 }
 
 int genRandomLength(double rate){
-	int u;
+	double u;
 	u = negexdistime(rate);
 
 	return u * 1544; // default for now
 }
 
 int genBackoffNumber(int T){
-	int u;
+	double u;
 	u = drand48();
 
 	return u * T; // default for now
 }
 
 double getFrameTransTime(double length){
-
-	return 1; // default for now
+	return (length * 8) / (11 * 106) / 1000; // default for now
 }
 
 int main(int argc, char *argv[])
 {
+	srand48(time(NULL));
 	double lambda = atof(argv[1]);
 	double SIFS = 0.00005, DIFS = 0.0001;
 	int numhosts = atoi(argv[2]);
@@ -57,7 +57,6 @@ int main(int argc, char *argv[])
 	Host hosts[50];
 	vector<Frame*> frameOrder;
 	vector<Frame*> globalFrameQ;
-	srand48(time(NULL));
 
 	// Step 1: All hosts generate all frames for simulation
 	for(int i = 0; i < numhosts; i++){
@@ -74,43 +73,112 @@ int main(int argc, char *argv[])
 		sort(frameOrder.rbegin(), frameOrder.rend(), compareFrameTimes);
 
    // Step 2: Determine what to do w/ each Frame starting with earliest generated
-		while(!frameOrder.empty()){
-				Frame *currentFrame = frameOrder.back();
-				frameOrder.pop_back();
-				currentTime = currentFrame->time;
-				int sourceHost = currentFrame->srcHost;
-				int destinationHost = currentFrame->destHost;
-				printf("Host %d's frame wants to send to host %d at time %f\n", sourceHost, destinationHost, currentTime);
+	double timeChannelFree = 0;
+	while(!frameOrder.empty()){
+		Frame *currentFrame = frameOrder.back();
+		frameOrder.pop_back();
+		currentTime = currentFrame->time;
+		int sourceHost = currentFrame->srcHost;
+		int destinationHost = currentFrame->destHost;
+		printf("Host %d's frame wants to send to host %d at time %f\n", sourceHost, destinationHost, currentTime);
 				
-				// "channel is idle" - transmit frame after DIFS delay
-				if(globalFrameQ.empty()){
-					printf("Channel is idle\n");
-					currentFrame->time += DIFS + getFrameTransTime(currentFrame->length);
-					hosts[destinationHost].receivedFrame = currentFrame;
-					//timeChannelFree = currentFrame->time;
-					globalFrameQ.push_back(currentFrame);
-					printf("Host %d will need to send ACK at time %f\n", destinationHost, currentFrame->time);;
-				}
-				// "channel" is busy -  assign backoff number and put frame in queue
-				else if(!globalFrameQ.empty()){
-					printf("Channel is busy\n");
-					hosts[sourceHost].backoffno = genBackoffNumber(T);
-					hosts[sourceHost].frameQueue.push_back(currentFrame);
-					currentTime = currentFrame->time;
-				}
+		// "channel is idle" - transmit frame after DIFS delay
+		if(globalFrameQ.empty()){
+			printf("Channel is idle\n");
+			currentFrame->time += DIFS + getFrameTransTime(currentFrame->length);
+			hosts[destinationHost].receivedFrame = currentFrame;
+			timeChannelFree = currentFrame->time;
+			globalFrameQ.push_back(currentFrame);
+			printf("Host %d will need to send ACK at time %f\n", destinationHost, currentFrame->time);
+			printf("Channel will now be busy until %f\n", timeChannelFree);
 		}
-				// Step 3: Check if we can send any acknowledgement frames
-	/*			Frame *peekNextFrame = frameOrder.back();
+		// "channel" is busy -  assign backoff number and put frame in queue
+		else if(!globalFrameQ.empty()){
+			printf("Channel is busy\n");
+			hosts[sourceHost].backoffno = genBackoffNumber(T);
+			hosts[sourceHost].frameQueue.push_back(currentFrame);
+			currentTime = currentFrame->time;
+			printf("Backoff set to %d at time %f\n", hosts[sourceHost].backoffno, currentTime);
+		}
 
-				for(int i = 0; i < numhosts; i++){
-					if(hosts[i].receivedFrame != NULL){
-						if(peekNextFrame->time > timeChannelFree){
-							currentTime = timeChannelFree;
-							Frame *newACKFrame = new Frame(destinationHost, sourceHost, 64, currentTime + SIFS);
-							hosts[sourceHost].ackFrame = newACKFrame; 
-							printf("Host %d has sent ACK at time %f\n", destinationHost, newACKFrame->time);
-						}
+		// Step 3: Check for hosts that need to send an ACK packet
+		printf("Now checking for ACKs\n");
+		for(int i = 0; i < numhosts; i++){
+			Frame *peekNextFrame = NULL;
+
+			if(!frameOrder.empty())
+				peekNextFrame = frameOrder.back();
+
+			if(hosts[i].receivedFrame != NULL){
+				Frame *received = hosts[i].receivedFrame;
+				if(peekNextFrame != NULL){
+					if(received->time < peekNextFrame->time){
+						Frame *newACKFrame = new Frame(destinationHost, sourceHost, 64, received->time + SIFS);
+						hosts[sourceHost].ackFrame = newACKFrame; 
+						printf("Host %d has sent ACK at time %f\n", destinationHost, newACKFrame->time);
+						hosts[i].receivedFrame = NULL;
+						globalFrameQ.pop_back();
+						currentTime = newACKFrame->time;
+						break;
 					}
 				}
-				*/
+				else{
+					Frame *newACKFrame = new Frame(destinationHost, sourceHost, 64, received->time + SIFS);
+					hosts[sourceHost].ackFrame = newACKFrame; 
+					printf("Last Host %d has sent ACK at time %f\n", destinationHost, newACKFrame->time);
+					break;
+				}
+			}
+		}
+
+		//Step 4: Deal with backoff numbers 
+		int hostWithLowestNum = -1;
+		int lowestNum = 50000;
+		printf("Now finding host w/ smallest backoff\n");
+		// Step 4a: find host with smallest backoff number 
+		for(int i = 0; i < numhosts; i++){		
+
+			if(hosts[i].backoffno != 0){ // has a backoff number
+				if(lowestNum > hosts[i].backoffno){
+					lowestNum = hosts[i].backoffno;
+					hostWithLowestNum = i;
+				}
+			}
+		}
+
+			// Step 4b: decrement numbers
+		Frame *waitingFrame;
+		Frame *peekNextFrame = NULL;
+		double freeTime = lowestNum * 0.00001;
+
+		if(hostWithLowestNum != -1){
+			waitingFrame = hosts[hostWithLowestNum].frameQueue.back();
+			printf("Host %d has smallest backoff number at %d\n", hostWithLowestNum, lowestNum);
+		}
+		else {// No backoff numbers to decrement
+			printf("No backoff numbers\n");
+			continue;
+		}
+
+		if(!frameOrder.empty()){
+			peekNextFrame = frameOrder.back();
+			if(peekNextFrame->time < timeChannelFree + freeTime){
+				freeTime = peekNextFrame->time - timeChannelFree;
+			}
+		}
+
+		printf("Free time is %f\n", freeTime);
+		printf("Now decrementing backoffs\n");
+		for(int i = 0; i < numhosts; i++)
+			for(double t = 0; t < freeTime; t += 0.00001)
+				if(hosts[i].backoffno != 0)
+					hosts[i].backoffno--;
+
+		if(freeTime == lowestNum * 0.00001) { // Put backed off frame in channel at front
+			waitingFrame->time = timeChannelFree + freeTime;
+			frameOrder.push_back(waitingFrame);
+			globalFrameQ.pop_back();
+		}
+	
+	}			
 }

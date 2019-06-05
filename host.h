@@ -13,6 +13,12 @@ class Host {
       double lambda;
       int backoffno;
 
+      Host(){
+      	receivedFrame = NULL;
+      	ackFrame = NULL;
+      	lambda = 0;
+      	backoffno = 0;
+      }
 };
 
 #endif

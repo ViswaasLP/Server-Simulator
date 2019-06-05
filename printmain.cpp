@@ -69,6 +69,7 @@ int main(int argc, char *argv[])
 			frameOrder.push_back(newFrame);
 			hosts[i].frameQueue.push_back(newFrame);
 			frameGenTime = newFrame->time;
+			printf("Time for frame %d is %f\n",newFrame->srcHost,newFrame->time);
 		}
 	}
 		sort(frameOrder.rbegin(), frameOrder.rend(), compareFrameTimes);
@@ -82,13 +83,15 @@ int main(int argc, char *argv[])
 		currentTime = currentFrame->time;
 		int sourceHost = currentFrame->srcHost;
 		int destinationHost = currentFrame->destHost;
-		
+		printf("Host %d's frame wants to send to host %d at time %f\n", sourceHost, destinationHost, currentTime);
+				
 		if(hosts[sourceHost].sentFrame != NULL){
 			if(hosts[sourceHost].ackFrame == NULL){
 				hosts[sourceHost].frameQueue.pop_back();
 				Frame *resendFrame = hosts[sourceHost].sentFrame;
 				failed++;
 				hosts[sourceHost].backoffno = genBackoffNumber(failed * T);
+				printf("There was a collision for host %d. Resending frame\n", sourceHost);
 				resendFrame->time = DIFS + getFrameTransTime(resendFrame->length) + currentTime;
 				hosts[sourceHost].frameQueue.push_back(currentFrame);
 				hosts[sourceHost].frameQueue.push_back(resendFrame);
@@ -96,26 +99,33 @@ int main(int argc, char *argv[])
 			else{
 				frameOrder.push_back(currentFrame);
 				hosts[sourceHost].ackFrame = NULL;
+				printf("Acknowledgement received\n");
 				continue;
 			}
 		}
 		// "channel is idle" - transmit frame after DIFS delay
 		else if(globalFrameQ.empty()){
+			printf("Channel is idle\n");
 			currentFrame->time += DIFS + getFrameTransTime(currentFrame->length);
 			hosts[destinationHost].receivedFrame = currentFrame;
 			timeChannelFree = currentFrame->time;
 
 			hosts[sourceHost].sentFrame = currentFrame;
 			globalFrameQ.push_back(currentFrame);
+			printf("Host %d will need to send ACK at time %f\n", destinationHost, currentFrame->time);
+			printf("Channel will now be busy until %f\n", timeChannelFree);
 		}
 		// "channel" is busy -  assign backoff number and put frame in queue
 		else if(!globalFrameQ.empty()){
+			printf("Channel is busy\n");
 			hosts[sourceHost].backoffno = genBackoffNumber(T);
 			hosts[sourceHost].frameQueue.push_back(currentFrame);
 			currentTime = currentFrame->time;
+			printf("Backoff set to %d at time %f\n", hosts[sourceHost].backoffno, currentTime);
 		}
 
 		// Step 3: Check for hosts that need to send an ACK packet
+		printf("Now checking for ACKs\n");
 		for(int i = 0; i < numhosts; i++){
 			Frame *peekNextFrame = NULL;
 
@@ -128,6 +138,7 @@ int main(int argc, char *argv[])
 					if(received->time < peekNextFrame->time){
 						Frame *newACKFrame = new Frame(destinationHost, sourceHost, 64, received->time + SIFS);
 						hosts[sourceHost].ackFrame = newACKFrame; 
+						printf("Host %d has sent ACK at time %f\n", destinationHost, newACKFrame->time);
 						hosts[i].receivedFrame = NULL;
 						globalFrameQ.pop_back();
 						currentTime = newACKFrame->time;
@@ -138,6 +149,7 @@ int main(int argc, char *argv[])
 				else{
 					Frame *newACKFrame = new Frame(destinationHost, sourceHost, 64, received->time + SIFS);
 					hosts[sourceHost].ackFrame = newACKFrame; 
+					printf("Last Host %d has sent ACK at time %f\n", destinationHost, newACKFrame->time);
 					currentTime = newACKFrame->time;
 					throughput += received->length;
 					break;
@@ -148,6 +160,7 @@ int main(int argc, char *argv[])
 		//Step 4: Deal with backoff numbers 
 		int hostWithLowestNum = -1;
 		int lowestNum = 50000;
+		printf("Now finding host w/ smallest backoff\n");
 		// Step 4a: find host with smallest backoff number 
 		for(int i = 0; i < numhosts; i++){		
 
@@ -166,8 +179,10 @@ int main(int argc, char *argv[])
 
 		if(hostWithLowestNum != -1){
 			waitingFrame = hosts[hostWithLowestNum].frameQueue.back();
+			printf("Host %d has smallest backoff number at %d\n", hostWithLowestNum, lowestNum);
 		}
 		else {// No backoff numbers to decrement
+			printf("No backoff numbers\n");
 			continue;
 		}
 
@@ -178,6 +193,8 @@ int main(int argc, char *argv[])
 			}
 		}
 
+		printf("Free time is %f\n", freeTime);
+		printf("Now decrementing backoffs\n");
 		for(int i = 0; i < numhosts; i++)
 			for(double t = 0; t < freeTime; t += 0.00001)
 				if(hosts[i].backoffno != 0)
@@ -191,6 +208,7 @@ int main(int argc, char *argv[])
 	
 		//limit++;
 	}
+
 	printf("Throughput: %f bytes/s \n", throughput / currentTime);
 	printf("Total collisions: %d\n", failed);
 }

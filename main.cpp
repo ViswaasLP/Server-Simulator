@@ -53,7 +53,8 @@ int main(int argc, char *argv[])
 	int numhosts = atoi(argv[2]);
 	int maxframes = atoi(argv[3]);
 	int T = atoi(argv[4]);
-	double currentTime = 0;
+	double currentTime = 0, throughput = 0, delay = 0;
+	int failed = 0;
 	Host hosts[50];
 	vector<Frame*> frameOrder;
 	vector<Frame*> globalFrameQ;
@@ -66,6 +67,7 @@ int main(int argc, char *argv[])
 			double transTime = frameGenTime + negexdistime(lambda);
 			Frame *newFrame = new Frame(i, genRandomHost(i, numhosts), genRandomLength(lambda), transTime);
 			frameOrder.push_back(newFrame);
+			hosts[i].frameQueue.push_back(newFrame);
 			frameGenTime = newFrame->time;
 			printf("Time for frame %d is %f\n",newFrame->srcHost,newFrame->time);
 		}
@@ -74,7 +76,8 @@ int main(int argc, char *argv[])
 
    // Step 2: Determine what to do w/ each Frame starting with earliest generated
 	double timeChannelFree = 0;
-	while(!frameOrder.empty()){
+	int limit = 0;
+	while(!frameOrder.empty() && limit < 2){
 		Frame *currentFrame = frameOrder.back();
 		frameOrder.pop_back();
 		currentTime = currentFrame->time;
@@ -88,6 +91,21 @@ int main(int argc, char *argv[])
 			currentFrame->time += DIFS + getFrameTransTime(currentFrame->length);
 			hosts[destinationHost].receivedFrame = currentFrame;
 			timeChannelFree = currentFrame->time;
+
+			if(hosts[sourceHost].sentFrame != NULL){
+				if(hosts[sourceHost].ackFrame == NULL){
+					hosts[sourceHost].frameQueue.pop_back();
+					Frame *resendFrame = hosts[sourceHost].sentFrame;
+					failed++;
+					hosts[sourceHost].backoffno = genBackoffNumber(failed * T);
+					printf("There was a collision for host %d. Resending frame\n", sourceHost);
+					resendFrame->time = DIFS + getFrameTransTime(resendFrame->length) + currentTime;
+					hosts[sourceHost].frameQueue.push_back(currentFrame);
+					hosts[sourceHost].frameQueue.push_back(resendFrame);
+				}
+			}
+
+			hosts[sourceHost].sentFrame = currentFrame;
 			globalFrameQ.push_back(currentFrame);
 			printf("Host %d will need to send ACK at time %f\n", destinationHost, currentFrame->time);
 			printf("Channel will now be busy until %f\n", timeChannelFree);
@@ -119,6 +137,7 @@ int main(int argc, char *argv[])
 						hosts[i].receivedFrame = NULL;
 						globalFrameQ.pop_back();
 						currentTime = newACKFrame->time;
+						throughput += received->length;
 						break;
 					}
 				}
@@ -126,6 +145,8 @@ int main(int argc, char *argv[])
 					Frame *newACKFrame = new Frame(destinationHost, sourceHost, 64, received->time + SIFS);
 					hosts[sourceHost].ackFrame = newACKFrame; 
 					printf("Last Host %d has sent ACK at time %f\n", destinationHost, newACKFrame->time);
+					currentTime = newACKFrame->time;
+					throughput += received->length;
 					break;
 				}
 			}
@@ -180,5 +201,8 @@ int main(int argc, char *argv[])
 			globalFrameQ.pop_back();
 		}
 	
-	}			
+		limit++;
+	}
+
+	printf("Throughput: %f bytes/s \n", throughput / currentTime);
 }

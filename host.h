@@ -10,12 +10,14 @@ class Host {
       vector<Frame*> frameQueue;
       Frame *receivedFrame;
       Frame *ackFrame;
+      Frame *sentFrame;
       double lambda;
       int backoffno;
 
       Host(){
       	receivedFrame = NULL;
       	ackFrame = NULL;
+            sentFrame = NULL;
       	lambda = 0;
       	backoffno = 0;
       }

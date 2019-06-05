@@ -19,24 +19,26 @@ double negexdistime(double rate){
 
 int genRandomHost(int exclude, int mod){
 	int u;
-	u = (rand() % mod) + 1;
+	u = (rand() % mod);
 
-	if(u == exclude)
-		return u/2;
-	else
-		return u;
+	while(u == exclude)
+		u = (rand() % mod);
+	
+	return u;
 }
 
-int genRandomLength(){
+int genRandomLength(double rate){
 	int u;
+	u = negexdistime(rate);
 
-	// insert code for generating random frame length here
-	return 10; // default for now
+	return u * 1544; // default for now
 }
 
 int genBackoffNumber(int T){
+	int u;
+	u = drand48();
 
-	return 10; // default for now
+	return u * T; // default for now
 }
 
 double getFrameTransTime(double length){
@@ -51,56 +53,64 @@ int main(int argc, char *argv[])
 	int numhosts = atoi(argv[2]);
 	int maxframes = atoi(argv[3]);
 	int T = atoi(argv[4]);
-	int numframes = 0;
 	double currentTime = 0;
 	Host hosts[50];
 	vector<Frame*> frameOrder;
 	vector<Frame*> globalFrameQ;
 	srand48(time(NULL));
-	srand(time(NULL));
 
-	while(numframes != maxframes){
-		double timeChannelFree = 0;
-		// Step 1: All hosts generate one Frame at rate Lambda
-		for(int i = 0; i < numhosts; i++){
-			double transTime = currentTime + negexdistime(lambda);
-			Frame *newFrame = new Frame(i, genRandomHost(i, numhosts), genRandomLength(), transTime, 'r');
+	// Step 1: All hosts generate all frames for simulation
+	for(int i = 0; i < numhosts; i++){
+		int frameGenTime = 0;
+
+		for(int j = 0; j < maxframes; j++){
+			double transTime = frameGenTime + negexdistime(lambda);
+			Frame *newFrame = new Frame(i, genRandomHost(i, numhosts), genRandomLength(lambda), transTime);
 			frameOrder.push_back(newFrame);
+			frameGenTime = newFrame->time;
+			printf("Time for frame %d is %f\n",newFrame->srcHost,newFrame->time);
 		}
-
+	}
 		sort(frameOrder.rbegin(), frameOrder.rend(), compareFrameTimes);
-		vector<Frame*>::iterator p;
-		for(p = frameOrder.begin(); p != frameOrder.end(); ++p){
-			Frame *printFrame = *p;
-    	printf("Time for frame %d is %f\n",printFrame->srcHost,printFrame->time);
-		}
 
-		// Step 2: Determine what to do w/ each Frame starting with earliest generated
-			for(int i = 0; i < numhosts; i++){
+   // Step 2: Determine what to do w/ each Frame starting with earliest generated
+		while(!frameOrder.empty()){
 				Frame *currentFrame = frameOrder.back();
 				frameOrder.pop_back();
 				currentTime = currentFrame->time;
 				int sourceHost = currentFrame->srcHost;
 				int destinationHost = currentFrame->destHost;
-				printf("Host %d's frame waiting to send to host %d at time %f\n", sourceHost, destinationHost, currentTime);
+				printf("Host %d's frame wants to send to host %d at time %f\n", sourceHost, destinationHost, currentTime);
+				
 				// "channel is idle" - transmit frame after DIFS delay
 				if(globalFrameQ.empty()){
+					printf("Channel is idle\n");
 					currentFrame->time += DIFS + getFrameTransTime(currentFrame->length);
 					hosts[destinationHost].receivedFrame = currentFrame;
-					timeChannelFree = currentFrame->time;
+					//timeChannelFree = currentFrame->time;
 					globalFrameQ.push_back(currentFrame);
-					currentTime = timeChannelFree;
+					printf("Host %d will need to send ACK at time %f\n", destinationHost, currentFrame->time);;
 				}
 				// "channel" is busy -  assign backoff number and put frame in queue
 				else if(!globalFrameQ.empty()){
+					printf("Channel is busy\n");
 					hosts[sourceHost].backoffno = genBackoffNumber(T);
 					hosts[sourceHost].frameQueue.push_back(currentFrame);
 					currentTime = currentFrame->time;
 				}
-			}
-
-
-			numframes++;
 		}
+				// Step 3: Check if we can send any acknowledgement frames
+	/*			Frame *peekNextFrame = frameOrder.back();
 
+				for(int i = 0; i < numhosts; i++){
+					if(hosts[i].receivedFrame != NULL){
+						if(peekNextFrame->time > timeChannelFree){
+							currentTime = timeChannelFree;
+							Frame *newACKFrame = new Frame(destinationHost, sourceHost, 64, currentTime + SIFS);
+							hosts[sourceHost].ackFrame = newACKFrame; 
+							printf("Host %d has sent ACK at time %f\n", destinationHost, newACKFrame->time);
+						}
+					}
+				}
+				*/
 }

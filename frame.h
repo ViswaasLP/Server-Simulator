@@ -9,7 +9,7 @@ class Frame {
     int length;
     double time;
     char type;
-  	Frame(int srchost, int desthost, int nlength, double ntime, char ntype);
+  	Frame(int srchost, int desthost, int nlength, double ntime);
   	double getTime() const {return time;}
 };
 

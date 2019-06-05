@@ -9,6 +9,6 @@ Frame::Frame(int srchost, int desthost, int nlength, double ntime, char ntype) {
   		this->type = ntype;
 }
 
-bool operator<(const Frame &f1, const Frame &f2){
+bool operator < (const Frame &f1, const Frame &f2){
 	return f1.getTime() < f2.getTime();
 }

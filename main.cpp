@@ -3,7 +3,7 @@
 #include <vector>
 #include <algorithm>
 #include <functional>
-#include "queue.h"
+#include <math.h>
 #include "host.h"
 #include "frame.h"
 
@@ -12,6 +12,7 @@ using namespace std;
 double negexdistime(double rate){
 	double u;
 	u = drand48();
+
 	return ((-1/rate)*log(1-u));
 }
 
@@ -29,7 +30,7 @@ int genRandomLength(){
 	int u;
 
 	// insert code for generating random frame length here
-	return 64; // default for now
+	return 10; // default for now
 }
 
 int genBackoffNumber(int T){
@@ -44,7 +45,7 @@ double getFrameTransTime(double length){
 
 int main(int argc, char *argv[])
 {
-	double lambda = atoi(argv[1]);
+	double lambda = atof(argv[1]);
 	double SIFS = 0.0005, DIFS = 0.001;
 	int numhosts = atoi(argv[2]);
 	int maxframes = atoi(argv[3]);
@@ -54,7 +55,6 @@ int main(int argc, char *argv[])
 	Host hosts[50];
 	vector<Frame*> frameOrder;
 	vector<Frame*> globalFrameQ;
-	hostOrder.resize(numHosts, 0);
 
 	while(numframes != maxframes){
 		double timeChannelFree = 0;
@@ -65,30 +65,39 @@ int main(int argc, char *argv[])
 			frameOrder.push_back(newFrame);
 		}
 
-		sort(frameOrder.begin(), frameOrder.end(), greater<double>());
+		sort(frameOrder.begin(), frameOrder.end());
+		vector<Frame*>::iterator p;
+		for(p = frameOrder.begin(); p != frameOrder.end(); ++p){
+			Frame *printFrame = *p;
+    	printf("Time for frame %d is %f\n",printFrame->srcHost,printFrame->time);
+		}
 
 		// Step 2: Determine what to do w/ each Frame starting with earliest generated
 			for(int i = 0; i < numhosts; i++){
-				Frame currentFrame = frameOrder.pop_back();
-				currentTime = currentFrame.time;
+				Frame *currentFrame = frameOrder.back();
+				frameOrder.pop_back();
+				currentTime = currentFrame->time;
 				int sourceHost = currentFrame->srcHost;
 				int destinationHost = currentFrame->destHost;
 
 				// "channel is idle" - transmit frame after DIFS delay
 				if(globalFrameQ.empty()){
-					currentFrame.time += DIFS + getFrameTransTime(currentFrame.length);
+					currentFrame->time += DIFS + getFrameTransTime(currentFrame->length);
 					hosts[destinationHost].receivedFrame = currentFrame;
-					timeChannelFree = currentFrame.time;
+					timeChannelFree = currentFrame->time;
 					globalFrameQ.push_back(currentFrame);
 					currentTime = timeChannelFree;
 				}
 				// "channel" is busy -  assign backoff number and put frame in queue
 				else if(!globalFrameQ.empty()){
-					hosts[sourceHost].backoffno = genBackoffNumber();
+					hosts[sourceHost].backoffno = genBackoffNumber(T);
 					hosts[sourceHost].frameQueue.push_back(currentFrame);
-					currentTime = currentFrame.time;
+					currentTime = currentFrame->time;
 				}
 			}
+
+
+			numframes++;
 		}
 
 }

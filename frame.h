@@ -13,6 +13,7 @@ class Frame {
   	double getTime() const {return time;}
 };
 
+bool compareFrameTimes(Frame *a, Frame *b);
+
 #endif
 
-bool operator<(const Frame &f1, const Frame &f2);

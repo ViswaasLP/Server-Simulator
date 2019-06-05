@@ -4,6 +4,7 @@
 #include <algorithm>
 #include <functional>
 #include <math.h>
+#include <time.h>
 #include "host.h"
 #include "frame.h"
 
@@ -46,7 +47,7 @@ double getFrameTransTime(double length){
 int main(int argc, char *argv[])
 {
 	double lambda = atof(argv[1]);
-	double SIFS = 0.0005, DIFS = 0.001;
+	double SIFS = 0.00005, DIFS = 0.0001;
 	int numhosts = atoi(argv[2]);
 	int maxframes = atoi(argv[3]);
 	int T = atoi(argv[4]);
@@ -55,6 +56,8 @@ int main(int argc, char *argv[])
 	Host hosts[50];
 	vector<Frame*> frameOrder;
 	vector<Frame*> globalFrameQ;
+	srand48(time(NULL));
+	srand(time(NULL));
 
 	while(numframes != maxframes){
 		double timeChannelFree = 0;
@@ -65,7 +68,7 @@ int main(int argc, char *argv[])
 			frameOrder.push_back(newFrame);
 		}
 
-		sort(frameOrder.begin(), frameOrder.end());
+		sort(frameOrder.rbegin(), frameOrder.rend(), compareFrameTimes);
 		vector<Frame*>::iterator p;
 		for(p = frameOrder.begin(); p != frameOrder.end(); ++p){
 			Frame *printFrame = *p;
@@ -79,7 +82,7 @@ int main(int argc, char *argv[])
 				currentTime = currentFrame->time;
 				int sourceHost = currentFrame->srcHost;
 				int destinationHost = currentFrame->destHost;
-
+				printf("Host %d's frame waiting to send to host %d at time %f\n", sourceHost, destinationHost, currentTime);
 				// "channel is idle" - transmit frame after DIFS delay
 				if(globalFrameQ.empty()){
 					currentFrame->time += DIFS + getFrameTransTime(currentFrame->length);
